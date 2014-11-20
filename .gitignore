@@ -1,3 +1,4 @@
 *.png
 *.json.gz
+*.json
 *.txt

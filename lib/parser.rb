@@ -7,7 +7,8 @@ class GithubArchive
       @pool    = []
       @start_time = Time.now
       @finished = false
-      @files = Dir["./data/temp/*.json.gz"].reverse
+      @files = Dir["./data/temp/*.json"].reverse if ARGV[1] == 'extracted'
+      @files = Dir["./data/temp/*.json.gz"].reverse if ARGV[1] != 'extracted'
       @languages = Set.new
       @hash = Hash.new(0)
     end
@@ -15,6 +16,7 @@ class GithubArchive
     def start_work
       @ranges = []
       n = @files.count / @threads
+
       @threads.times do |i|
         i += 1
         x,y = @ranges.last[1], (n*i) if defined?(@ranges.last[1]) && @ranges.last[1].is_a?(Integer)
@@ -30,9 +32,24 @@ class GithubArchive
         end
       end
 
-      @pool.each do |thread|
-        thread.join
+      # @pool.each do |thread|
+      #   thread.join
+      # end
+
+      # Block the world!
+      i_i = 0
+      loop do
+        count = 0
+        @pool.each do |thread|
+          if thread.alive?
+            count+=1
+          end
+        end
+        i_i+=1
+        break if (count == 0 && i_i >= 1_000_000)
       end
+      puts i_i
+
       @finished = true
       puts "Processed #{@files.count} files, in #{Time.at((Time.now-@start_time)).gmtime.strftime('%R:%S')}."
     end
@@ -41,19 +58,25 @@ class GithubArchive
       start_time = Time.now
       @files[range].each do |file|
         puts "Processing file: #{file}..."
-        @raw_data = File.open(file, "rb")
-        begin
-          puts "Decompressing file..."
-          @data = Zlib::GzipReader.new(@raw_data).read
-        rescue Zlib::DataError,Zlib::GzipFile::Error
-          next
+        if ARGV[1] != 'extracted'
+          @data = File.open(file, "rb")
+          begin
+            puts "Decompressing file..."
+            @data = Zlib::GzipReader.new(@raw_data).read
+          rescue Zlib::DataError,Zlib::GzipFile::Error
+            next
+          end
+
+        else
+          @data = File.open(file, "r")
         end
 
         puts "Parsing JSON..."
         @data.each_line do |data|
           begin
-            inner_data = JSON.load(data.chomp)
-          rescue #JSON::ParseError
+            inner_data = MultiJson.load(data.chomp)
+          rescue MultiJson::ParseError => e
+            p e
             next
           end
           if inner_data["type"] =~ /PushEvent/

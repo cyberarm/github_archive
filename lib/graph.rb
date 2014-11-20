@@ -13,7 +13,7 @@ class GithubArchive
     def process_data
       @parser.hash.each do |lang, value|
         next if lang.nil?
-        lang = "Unkown" if lang.length <= 0
+        lang = "Unknown" if lang.length <= 0
         @list[lang] = value
       end
 
